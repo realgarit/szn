@@ -1,13 +1,18 @@
 import Cocoa
 import SwiftUI
 
-final class StatusBarController {
+final class StatusBarController: NSObject, NSMenuDelegate {
     private let statusItem: NSStatusItem
 
     private var settingsWindow: NSWindow?
 
-    init() {
+    /// Tracks the app that was active *before* the user clicked the szn menu.
+    private var previousApp: NSRunningApplication?
+
+    override init() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+
+        super.init()
 
         if let button = statusItem.button {
             let image = NSImage(systemSymbolName: "macwindow", accessibilityDescription: "szn")
@@ -21,6 +26,28 @@ final class StatusBarController {
         NotificationCenter.default.addObserver(
             self, selector: #selector(onProfilesChanged),
             name: .profilesDidChange, object: nil)
+
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(onProfilesChanged),
+            name: .updateAvailable, object: nil)
+
+        // Track active app changes so we know which app was in focus before clicking szn
+        NSWorkspace.shared.notificationCenter.addObserver(
+            self, selector: #selector(onAppActivated(_:)),
+            name: NSWorkspace.didActivateApplicationNotification, object: nil)
+    }
+
+    @objc private func onAppActivated(_ note: Notification) {
+        guard let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
+              app.bundleIdentifier != Bundle.main.bundleIdentifier else { return }
+        previousApp = app
+    }
+
+    // MARK: - NSMenuDelegate
+
+    func menuWillOpen(_ menu: NSMenu) {
+        // Snapshot the previously active app right when the menu opens
+        // (previousApp is already set via the workspace notification)
     }
 
     // MARK: - Menu
@@ -31,6 +58,7 @@ final class StatusBarController {
 
     private func rebuildMenu() {
         let menu = NSMenu()
+        menu.delegate = self
 
         // Global toggle
         let globalTitle = ProfileStore.shared.isGloballyEnabled ? "Enabled" : "Disabled"
@@ -105,6 +133,20 @@ final class StatusBarController {
 
         menu.addItem(.separator())
 
+        // Update available
+        if let version = UpdateChecker.shared.availableVersion {
+            let update = NSMenuItem(title: "Update Available: v\(version)", action: #selector(openUpdate), keyEquivalent: "")
+            update.target = self
+            update.image = NSImage(systemSymbolName: "arrow.down.circle.fill", accessibilityDescription: "update")
+            update.image?.isTemplate = true
+            menu.addItem(update)
+            menu.addItem(.separator())
+        }
+
+        let checkUpdate = NSMenuItem(title: "Check for Updates…", action: #selector(checkForUpdates), keyEquivalent: "")
+        checkUpdate.target = self
+        menu.addItem(checkUpdate)
+
         let settings = NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
         settings.target = self
         menu.addItem(settings)
@@ -128,18 +170,18 @@ final class StatusBarController {
 
     private func saveCurrentWindow(withPosition: Bool) {
         guard AccessibilityService.shared.isPermissionGranted() else {
-            AccessibilityService.shared.promptPermission()
+            AccessibilityService.shared.requestPermissionIfNeeded { }
             return
         }
 
-        guard let frontApp = NSWorkspace.shared.frontmostApplication,
-              let bundleID = frontApp.bundleIdentifier,
-              let frame = AccessibilityService.shared.getFocusedWindowFrame(for: frontApp) else {
-            showAlert("Could not read window size. Make sure a window is in focus.")
+        guard let targetApp = previousApp,
+              let bundleID = targetApp.bundleIdentifier,
+              let frame = AccessibilityService.shared.getFocusedWindowFrame(for: targetApp) else {
+            showAlert("Could not read window size. Make sure another app's window was in focus before clicking szn.")
             return
         }
 
-        let appName = frontApp.localizedName ?? bundleID
+        let appName = targetApp.localizedName ?? bundleID
 
         let profile = WindowProfile(
             bundleIdentifier: bundleID,
@@ -191,6 +233,22 @@ final class StatusBarController {
 
         settingsWindow?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+    }
+
+    @objc private func openUpdate() {
+        if let url = UpdateChecker.shared.downloadURL {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
+    @objc private func checkForUpdates() {
+        UpdateChecker.shared.checkForUpdates()
+        // Brief feedback: if no update found after a short delay, show status
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
+            if !UpdateChecker.shared.isUpdateAvailable {
+                self?.showAlert("You're on the latest version (v\(UpdateChecker.shared.currentVersion)).")
+            }
+        }
     }
 
     @objc private func doQuit() {

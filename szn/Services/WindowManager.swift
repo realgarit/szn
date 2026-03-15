@@ -15,6 +15,13 @@ final class WindowManager {
 
         nc.addObserver(self, selector: #selector(appDidTerminate(_:)),
                        name: NSWorkspace.didTerminateApplicationNotification, object: nil)
+
+        // Install AX observers for apps that are already running and have saved profiles
+        for app in NSWorkspace.shared.runningApplications {
+            guard let bundleID = app.bundleIdentifier,
+                  ProfileStore.shared.profile(for: bundleID) != nil else { continue }
+            installAXObserver(for: app)
+        }
     }
 
     func stopObserving() {

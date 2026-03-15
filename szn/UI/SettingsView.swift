@@ -3,6 +3,7 @@ import ServiceManagement
 
 struct SettingsView: View {
     @ObservedObject private var store = ProfileStore.shared
+    @ObservedObject private var updater = UpdateChecker.shared
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
 
     var body: some View {
@@ -77,9 +78,16 @@ struct SettingsView: View {
 
     private var footer: some View {
         HStack {
-            Text("szn v1.0.0")
+            Text("szn v\(updater.currentVersion)")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+            if let newVersion = updater.availableVersion, let url = updater.downloadURL {
+                Text("·")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Link("v\(newVersion) available", destination: url)
+                    .font(.caption)
+            }
             Spacer()
         }
     }

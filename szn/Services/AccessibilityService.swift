@@ -4,13 +4,32 @@ import ApplicationServices
 final class AccessibilityService {
     static let shared = AccessibilityService()
 
+    private var permissionTimer: Timer?
+
     func isPermissionGranted() -> Bool {
         AXIsProcessTrusted()
     }
 
-    func promptPermission() {
-        let options = [kAXTrustedCheckOptionPrompt.takeRetainedValue() as String: true] as CFDictionary
+    /// Shows the system accessibility prompt and polls until permission is granted.
+    func requestPermissionIfNeeded(onGranted: @escaping () -> Void) {
+        guard !isPermissionGranted() else {
+            onGranted()
+            return
+        }
+
+        // Show the system prompt — uses takeUnretainedValue because this is a global constant
+        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
         AXIsProcessTrustedWithOptions(options)
+
+        // Poll every 1s until the user grants permission in System Settings
+        permissionTimer?.invalidate()
+        permissionTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] timer in
+            if AXIsProcessTrusted() {
+                timer.invalidate()
+                self?.permissionTimer = nil
+                DispatchQueue.main.async { onGranted() }
+            }
+        }
     }
 
     /// Read the focused window's frame for a given app.

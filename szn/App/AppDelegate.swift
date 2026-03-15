@@ -5,12 +5,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var windowManager: WindowManager?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        if !AccessibilityService.shared.isPermissionGranted() {
-            AccessibilityService.shared.promptPermission()
-        }
-
         statusBarController = StatusBarController()
 
+        AccessibilityService.shared.requestPermissionIfNeeded { [weak self] in
+            self?.startWindowManager()
+        }
+
+        // Check for updates in the background
+        UpdateChecker.shared.checkForUpdates()
+    }
+
+    private func startWindowManager() {
+        guard windowManager == nil else { return }
         windowManager = WindowManager()
         windowManager?.startObserving()
     }

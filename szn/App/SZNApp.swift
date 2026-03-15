@@ -1,11 +1,14 @@
 import Cocoa
 
+// AppDelegate must be stored statically so it isn't deallocated —
+// NSApplication.delegate is a weak reference.
+private let appDelegate = AppDelegate()
+
 @main
 enum SZNApp {
     static func main() {
         let app = NSApplication.shared
-        let delegate = AppDelegate()
-        app.delegate = delegate
+        app.delegate = appDelegate
         app.run()
     }
 }

@@ -16,7 +16,7 @@ endif
 	@echo "── Bumping version to $(VERSION)..."
 	@sed -i '' 's/MARKETING_VERSION: ".*"/MARKETING_VERSION: "$(VERSION)"/' project.yml
 	@git add project.yml
-	@git commit -m "release: v$(VERSION)"
+	@git diff --cached --quiet && echo "Version already $(VERSION), skipping commit." || git commit -m "release: v$(VERSION)"
 	@git tag "v$(VERSION)"
 	@echo "── Pushing commit and tag..."
 	@git push && git push origin "v$(VERSION)"
