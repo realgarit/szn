@@ -5,6 +5,7 @@ final class AccessibilityService {
     static let shared = AccessibilityService()
 
     private var permissionTimer: Timer?
+    private var pollAttempts = 0
 
     func isPermissionGranted() -> Bool {
         AXIsProcessTrusted()
@@ -17,17 +18,28 @@ final class AccessibilityService {
             return
         }
 
-        // Show the system prompt — uses takeUnretainedValue because this is a global constant
+        // Try stripping quarantine from ourselves first — this is the #1 cause
+        // of permission not sticking on macOS Sequoia for unsigned apps
+        stripQuarantine()
+
+        // Show the system prompt
         let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
         AXIsProcessTrustedWithOptions(options)
 
-        // Poll every 1s until the user grants permission in System Settings
+        // Poll until the user grants permission
+        pollAttempts = 0
         permissionTimer?.invalidate()
         permissionTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] timer in
+            guard let self = self else { timer.invalidate(); return }
+            self.pollAttempts += 1
+
             if AXIsProcessTrusted() {
                 timer.invalidate()
-                self?.permissionTimer = nil
+                self.permissionTimer = nil
                 DispatchQueue.main.async { onGranted() }
+            } else if self.pollAttempts == 15 {
+                // After 15s of waiting, show troubleshooting help
+                DispatchQueue.main.async { self.showTroubleshootingAlert() }
             }
         }
     }
@@ -90,5 +102,46 @@ final class AccessibilityService {
         AXValueGetValue(sizeRef as! AXValue, .cgSize, &size)
 
         return CGRect(origin: position, size: size)
+    }
+
+    /// Attempt to remove quarantine attribute from the running app bundle.
+    /// Quarantined unsigned apps can't reliably hold accessibility permissions on Sequoia.
+    private func stripQuarantine() {
+        guard let bundlePath = Bundle.main.bundlePath as String? else { return }
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/xattr")
+        process.arguments = ["-dr", "com.apple.quarantine", bundlePath]
+        try? process.run()
+        process.waitUntilExit()
+    }
+
+    private func showTroubleshootingAlert() {
+        let alert = NSAlert()
+        alert.messageText = "Accessibility Permission"
+        alert.informativeText = """
+            szn still can't detect accessibility permission.
+
+            This usually happens because macOS quarantines apps downloaded from the internet. To fix:
+
+            1. Quit szn
+            2. Open Terminal and run:
+               xattr -cr \(Bundle.main.bundlePath)
+            3. Reopen szn and grant permission again
+
+            Alternatively, move szn.app to /Applications before opening it for the first time.
+            """
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: "Copy Terminal Command")
+        alert.addButton(withTitle: "Open System Settings")
+        alert.addButton(withTitle: "Dismiss")
+
+        let response = alert.runModal()
+        if response == .alertFirstButtonReturn {
+            let command = "xattr -cr \"\(Bundle.main.bundlePath)\""
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(command, forType: .string)
+        } else if response == .alertSecondButtonReturn {
+            NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)
+        }
     }
 }

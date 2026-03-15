@@ -35,11 +35,16 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             ONLY_ACTIVE_ARCH=NO
 
-      - name: Prepare app bundle
+      - name: Sign and prepare app bundle
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
+          APP="build/Build/Products/Release/szn.app"
+          # Ad-hoc sign the bundle so macOS recognizes a stable identity
+          codesign --force --deep --sign - "$APP"
+          # Strip quarantine flag preemptively
+          xattr -cr "$APP"
           mkdir -p dmg-staging
-          cp -R build/Build/Products/Release/szn.app dmg-staging/
+          cp -R "$APP" dmg-staging/
 
       - name: Create DMG
         if: startsWith(github.ref, 'refs/tags/v')
