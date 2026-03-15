@@ -93,7 +93,3 @@ Contributions are welcome! Feel free to open an issue or submit a pull request.
 3. Commit your changes
 4. Push to the branch
 5. Open a Pull Request
-
-## License
-
-[MIT](LICENSE) — Patrik Lleshaj
