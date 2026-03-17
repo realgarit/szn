@@ -7,6 +7,9 @@ on:
   pull_request:
     branches: [main]
 
+env:
+  APP_NAME: "szn - Window Resizer"
+
 jobs:
   build:
     name: Build szn
@@ -38,10 +41,8 @@ jobs:
       - name: Sign and prepare app bundle
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
-          APP="build/Build/Products/Release/szn.app"
-          # Ad-hoc sign the bundle so macOS recognizes a stable identity
+          APP="build/Build/Products/Release/${APP_NAME}.app"
           codesign --force --deep --sign - "$APP"
-          # Strip quarantine flag preemptively
           xattr -cr "$APP"
           mkdir -p dmg-staging
           cp -R "$APP" dmg-staging/
@@ -51,13 +52,13 @@ jobs:
         run: |
           brew install create-dmg
           create-dmg \
-            --volname "szn" \
+            --volname "szn - Window Resizer" \
             --window-pos 200 120 \
             --window-size 600 400 \
             --icon-size 100 \
-            --icon "szn.app" 150 185 \
+            --icon "${APP_NAME}.app" 150 185 \
             --app-drop-link 450 185 \
-            --hide-extension "szn.app" \
+            --hide-extension "${APP_NAME}.app" \
             --no-internet-enable \
             "szn-${GITHUB_REF_NAME}.dmg" \
             "dmg-staging/" || true

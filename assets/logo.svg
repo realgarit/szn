@@ -1,31 +1,32 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" fill="none">
-  <!-- macOS icon-shaped background with gradient -->
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1024" y2="1024" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#2D2D30"/>
-      <stop offset="100%" stop-color="#1A1A1D"/>
+      <stop offset="0%" stop-color="#4A90D9"/>
+      <stop offset="100%" stop-color="#1B3A5C"/>
     </linearGradient>
   </defs>
+
+  <!-- Full-bleed background — macOS clips to superellipse -->
   <rect width="1024" height="1024" rx="228" fill="url(#bg)"/>
 
-  <!-- Window frame — larger, centered -->
-  <rect x="172" y="200" width="680" height="500" rx="28" stroke="#F5F5F7" stroke-width="24" fill="none"/>
+  <!-- Window frame — large and centered -->
+  <rect x="140" y="180" width="744" height="540" rx="32" stroke="#FFFFFF" stroke-width="28" fill="rgba(255,255,255,0.08)"/>
 
   <!-- Title bar line -->
-  <line x1="172" y1="296" x2="852" y2="296" stroke="#F5F5F7" stroke-width="24"/>
+  <line x1="140" y1="288" x2="884" y2="288" stroke="#FFFFFF" stroke-width="28"/>
 
   <!-- Traffic lights -->
-  <circle cx="240" cy="248" r="18" fill="#FF5F57"/>
-  <circle cx="296" cy="248" r="18" fill="#FEBC2E"/>
-  <circle cx="352" cy="248" r="18" fill="#28C840"/>
+  <circle cx="220" cy="234" r="22" fill="#FF5F57"/>
+  <circle cx="284" cy="234" r="22" fill="#FEBC2E"/>
+  <circle cx="348" cy="234" r="22" fill="#28C840"/>
 
-  <!-- Resize arrows — centered in window body -->
-  <g stroke="#007AFF" stroke-width="24" stroke-linecap="round" stroke-linejoin="round">
+  <!-- Resize arrows — centered in window body, larger -->
+  <g stroke="#FFFFFF" stroke-width="28" stroke-linecap="round" stroke-linejoin="round">
     <!-- Expand arrow (top-right) -->
-    <line x1="580" y1="540" x2="720" y2="400"/>
-    <polyline points="648,400 720,400 720,472"/>
+    <line x1="440" y1="590" x2="640" y2="390"/>
+    <polyline points="552,390 640,390 640,478"/>
     <!-- Shrink arrow (bottom-left) -->
-    <line x1="720" y1="540" x2="580" y2="400"/>
-    <polyline points="652,540 580,540 580,468"/>
+    <line x1="640" y1="590" x2="440" y2="390"/>
+    <polyline points="528,590 440,590 440,502"/>
   </g>
 </svg>

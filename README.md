@@ -35,12 +35,11 @@ Grab the latest `.dmg` from the [Releases](https://github.com/realgarit/szn/rele
 > **Note:** szn is not code-signed with an Apple Developer certificate.
 > On first launch, macOS Gatekeeper will block it. To open:
 >
-> 1. Open the `.dmg` and drag `szn.app` to **Applications**
-> 2. Open Terminal and run: `xattr -cr /Applications/szn.app`
-> 3. Right-click (or Control-click) `szn.app` → **Open** → click **Open**
+> 1. Open the `.dmg` and drag **szn - Window Resizer** to **Applications**
+> 2. Right-click (or Control-click) the app → **Open** → click **Open**
 >
-> Step 2 removes the macOS quarantine flag, which is required for accessibility
-> permissions to work correctly with unsigned apps on macOS Sequoia and later.
+> The app automatically handles quarantine removal and accessibility permission
+> setup on macOS Sequoia and later.
 
 ### Build from source
 
