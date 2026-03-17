@@ -1,20 +1,30 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1024" y2="1024" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#5BA0E0"/>
+      <stop offset="100%" stop-color="#2A6DB5"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Solid background — fills macOS icon shape -->
+  <rect width="1024" height="1024" rx="228" fill="url(#bg)"/>
+
   <!-- Window frame — centered -->
-  <rect x="140" y="242" width="744" height="540" rx="32" stroke="#4A90D9" stroke-width="28" fill="none"/>
+  <rect x="160" y="252" width="704" height="520" rx="32" stroke="#FFFFFF" stroke-width="26" fill="rgba(255,255,255,0.12)"/>
 
   <!-- Title bar line -->
-  <line x1="140" y1="350" x2="884" y2="350" stroke="#4A90D9" stroke-width="28"/>
+  <line x1="160" y1="352" x2="864" y2="352" stroke="#FFFFFF" stroke-width="26"/>
 
   <!-- Traffic lights -->
-  <circle cx="220" cy="296" r="22" fill="#FF5F57"/>
-  <circle cx="284" cy="296" r="22" fill="#FEBC2E"/>
-  <circle cx="348" cy="296" r="22" fill="#28C840"/>
+  <circle cx="232" cy="302" r="20" fill="rgba(255,255,255,0.9)"/>
+  <circle cx="292" cy="302" r="20" fill="rgba(255,255,255,0.9)"/>
+  <circle cx="352" cy="302" r="20" fill="rgba(255,255,255,0.9)"/>
 
-  <!-- Resize arrows — centered in window body (512±100) -->
-  <g stroke="#4A90D9" stroke-width="28" stroke-linecap="round" stroke-linejoin="round">
-    <line x1="412" y1="652" x2="612" y2="452"/>
-    <polyline points="524,452 612,452 612,540"/>
-    <line x1="612" y1="652" x2="412" y2="452"/>
-    <polyline points="500,652 412,652 412,564"/>
+  <!-- Resize arrows — centered in window body -->
+  <g stroke="#FFFFFF" stroke-width="28" stroke-linecap="round" stroke-linejoin="round">
+    <line x1="412" y1="642" x2="612" y2="442"/>
+    <polyline points="524,442 612,442 612,530"/>
+    <line x1="612" y1="642" x2="412" y2="442"/>
+    <polyline points="500,642 412,642 412,554"/>
   </g>
 </svg>
