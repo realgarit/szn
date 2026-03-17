@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <!-- Background rounded square -->
+  <rect x="32" y="32" width="448" height="448" rx="80" fill="#1C1C1E"/>
+
+  <!-- Window frame -->
+  <rect x="96" y="120" width="320" height="240" rx="16" stroke="#F5F5F7" stroke-width="16" fill="none"/>
+
+  <!-- Title bar -->
+  <line x1="96" y1="168" x2="416" y2="168" stroke="#F5F5F7" stroke-width="16"/>
+
+  <!-- Traffic lights -->
+  <circle cx="132" cy="144" r="10" fill="#FF5F57"/>
+  <circle cx="164" cy="144" r="10" fill="#FEBC2E"/>
+  <circle cx="196" cy="144" r="10" fill="#28C840"/>
+
+  <!-- Resize arrow (bottom-right corner) -->
+  <g stroke="#007AFF" stroke-width="14" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Arrow pointing outward from center -->
+    <line x1="304" y1="312" x2="376" y2="240"/>
+    <polyline points="340,240 376,240 376,276"/>
+    <!-- Arrow pointing inward to center -->
+    <line x1="376" y1="312" x2="304" y2="240"/>
+    <polyline points="340,312 304,312 304,276"/>
+  </g>
+
+  <!-- "szn" text -->
+  <text x="256" y="440" text-anchor="middle" font-family="-apple-system, SF Pro Display, Helvetica Neue, sans-serif" font-size="56" font-weight="700" fill="#F5F5F7" letter-spacing="4">szn</text>
+</svg>

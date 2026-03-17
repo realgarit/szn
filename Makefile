@@ -17,9 +17,9 @@ endif
 	@sed -i '' 's/MARKETING_VERSION: ".*"/MARKETING_VERSION: "$(VERSION)"/' project.yml
 	@git add project.yml
 	@git diff --cached --quiet && echo "Version already $(VERSION), skipping commit." || git commit -m "release: v$(VERSION)"
-	@git tag "v$(VERSION)"
+	@git tag -f "v$(VERSION)"
 	@echo "── Pushing commit and tag..."
-	@git push && git push origin "v$(VERSION)"
+	@git push && git push origin "v$(VERSION)" --force
 	@echo "── Done! GitHub Actions will build the DMG and create the release."
 	@echo "   https://github.com/realgarit/szn/actions"
 

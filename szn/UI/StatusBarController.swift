@@ -223,7 +223,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
             let view = SettingsView()
             let controller = NSHostingController(rootView: view)
             let window = NSWindow(contentViewController: controller)
-            window.title = "szn Settings"
+            window.title = "szn - Window Resizer"
             window.styleMask = [.titled, .closable, .miniaturizable]
             window.setContentSize(NSSize(width: 480, height: 420))
             window.center()

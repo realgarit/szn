@@ -28,7 +28,7 @@ struct SettingsView: View {
                 .font(.title)
             Text("szn")
                 .font(.title.bold())
-            Text("Settings")
+            Text("- Window Resizer")
                 .font(.title)
                 .foregroundStyle(.secondary)
         }

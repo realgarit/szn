@@ -5,7 +5,7 @@
     <key>CFBundleName</key>
     <string>szn</string>
     <key>CFBundleDisplayName</key>
-    <string>szn</string>
+    <string>szn - Window Resizer</string>
     <key>CFBundleIdentifier</key>
     <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
     <key>CFBundleVersion</key>

@@ -1,6 +1,10 @@
-# szn
+<p align="center">
+  <img src="assets/logo.svg" width="128" alt="szn logo"/>
+</p>
 
-**Save a window size once. Apply it to every new window — automatically.**
+<h1 align="center">szn - Window Resizer</h1>
+
+<p align="center"><strong>Save a window size once. Apply it to every new window — automatically.</strong></p>
 
 [![Build](https://github.com/realgarit/szn/actions/workflows/build.yml/badge.svg)](https://github.com/realgarit/szn/actions/workflows/build.yml)
 [![Release](https://img.shields.io/github/v/release/realgarit/szn?label=latest)](https://github.com/realgarit/szn/releases/latest)
