@@ -15,7 +15,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         super.init()
 
         if let button = statusItem.button {
-            let image = NSImage(systemSymbolName: "macwindow", accessibilityDescription: "szn")
+            let image = NSImage(named: "MenuBarIcon")
             image?.size = NSSize(width: 18, height: 18)
             image?.isTemplate = true
             button.image = image
