@@ -13,14 +13,17 @@ final class AccessibilityService {
 
     /// Shows the system accessibility prompt and polls until permission is granted.
     func requestPermissionIfNeeded(onGranted: @escaping () -> Void) {
+        // Always strip quarantine first — safe and idempotent
+        stripQuarantine()
+
         guard !isPermissionGranted() else {
             onGranted()
             return
         }
 
-        // Try stripping quarantine from ourselves first — this is the #1 cause
-        // of permission not sticking on macOS Sequoia for unsigned apps
-        stripQuarantine()
+        // Clear any stale TCC entry from a previous build whose ad-hoc
+        // signature no longer matches. This lets macOS re-evaluate cleanly.
+        resetTCCEntry()
 
         // Show the system prompt
         let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
@@ -116,37 +119,21 @@ final class AccessibilityService {
     }
 
     private func showTroubleshootingAlert() {
-        // Try resetting the TCC entry automatically — a stale entry from a
-        // previous build (different ad-hoc signature) is the most common cause
-        resetTCCEntry()
-
-        let bundleID = Bundle.main.bundleIdentifier ?? "com.szn.app"
         let alert = NSAlert()
         alert.messageText = "Accessibility Permission"
         alert.informativeText = """
-            szn still can't detect accessibility permission.
+            szn can't detect accessibility permission yet.
 
-            This can happen after an update or fresh install. To fix:
+            Please make sure szn is enabled in:
+            System Settings → Privacy & Security → Accessibility
 
-            1. Quit szn
-            2. Open Terminal and run:
-               tccutil reset Accessibility \(bundleID) && xattr -cr \(Bundle.main.bundlePath)
-            3. Reopen szn and grant permission again
-
-            We've already tried resetting the permission automatically.
-            If it still doesn't work, try the terminal command above.
+            If the toggle is already on, try turning it off and on again.
             """
         alert.alertStyle = .informational
-        alert.addButton(withTitle: "Copy Fix Command")
         alert.addButton(withTitle: "Open System Settings")
         alert.addButton(withTitle: "Dismiss")
 
-        let response = alert.runModal()
-        if response == .alertFirstButtonReturn {
-            let command = "tccutil reset Accessibility \(bundleID) && xattr -cr \"\(Bundle.main.bundlePath)\""
-            NSPasteboard.general.clearContents()
-            NSPasteboard.general.setString(command, forType: .string)
-        } else if response == .alertSecondButtonReturn {
+        if alert.runModal() == .alertFirstButtonReturn {
             NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)
         }
     }
