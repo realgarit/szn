@@ -15,10 +15,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         super.init()
 
         if let button = statusItem.button {
-            let image = NSImage(named: "MenuBarIcon")
-            image?.size = NSSize(width: 18, height: 18)
-            image?.isTemplate = true
-            button.image = image
+            button.image = Self.createMenuBarIcon()
         }
 
         rebuildMenu()
@@ -278,5 +275,46 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         alert.informativeText = message
         alert.alertStyle = .warning
         alert.runModal()
+    }
+
+    /// Draw the menu bar icon programmatically — guarantees transparent background.
+    private static func createMenuBarIcon() -> NSImage {
+        let size = NSSize(width: 18, height: 18)
+        let image = NSImage(size: size, flipped: false) { rect in
+            let path = NSBezierPath()
+            path.lineWidth = 1.6
+            path.lineCapStyle = .round
+            path.lineJoinStyle = .round
+
+            let inset: CGFloat = 3
+            let minX = inset
+            let maxX = rect.width - inset
+            let minY = inset
+            let maxY = rect.height - inset
+            let midX = rect.midX
+            let midY = rect.midY
+
+            // Expand arrow: bottom-left to top-right
+            path.move(to: NSPoint(x: minX, y: minY))
+            path.line(to: NSPoint(x: maxX, y: maxY))
+            // Arrowhead
+            path.move(to: NSPoint(x: midX, y: maxY))
+            path.line(to: NSPoint(x: maxX, y: maxY))
+            path.line(to: NSPoint(x: maxX, y: midY))
+
+            // Shrink arrow: top-right to bottom-left
+            path.move(to: NSPoint(x: maxX, y: minY))
+            path.line(to: NSPoint(x: minX, y: maxY))
+            // Arrowhead
+            path.move(to: NSPoint(x: midX, y: minY))
+            path.line(to: NSPoint(x: minX, y: minY))
+            path.line(to: NSPoint(x: minX, y: midY))
+
+            NSColor.black.setStroke()
+            path.stroke()
+            return true
+        }
+        image.isTemplate = true
+        return image
     }
 }
