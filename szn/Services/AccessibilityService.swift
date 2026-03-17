@@ -116,32 +116,48 @@ final class AccessibilityService {
     }
 
     private func showTroubleshootingAlert() {
+        // Try resetting the TCC entry automatically — a stale entry from a
+        // previous build (different ad-hoc signature) is the most common cause
+        resetTCCEntry()
+
+        let bundleID = Bundle.main.bundleIdentifier ?? "com.szn.app"
         let alert = NSAlert()
         alert.messageText = "Accessibility Permission"
         alert.informativeText = """
             szn still can't detect accessibility permission.
 
-            This usually happens because macOS quarantines apps downloaded from the internet. To fix:
+            This can happen after an update or fresh install. To fix:
 
             1. Quit szn
             2. Open Terminal and run:
-               xattr -cr \(Bundle.main.bundlePath)
+               tccutil reset Accessibility \(bundleID) && xattr -cr \(Bundle.main.bundlePath)
             3. Reopen szn and grant permission again
 
-            Alternatively, move szn.app to /Applications before opening it for the first time.
+            We've already tried resetting the permission automatically.
+            If it still doesn't work, try the terminal command above.
             """
         alert.alertStyle = .informational
-        alert.addButton(withTitle: "Copy Terminal Command")
+        alert.addButton(withTitle: "Copy Fix Command")
         alert.addButton(withTitle: "Open System Settings")
         alert.addButton(withTitle: "Dismiss")
 
         let response = alert.runModal()
         if response == .alertFirstButtonReturn {
-            let command = "xattr -cr \"\(Bundle.main.bundlePath)\""
+            let command = "tccutil reset Accessibility \(bundleID) && xattr -cr \"\(Bundle.main.bundlePath)\""
             NSPasteboard.general.clearContents()
             NSPasteboard.general.setString(command, forType: .string)
         } else if response == .alertSecondButtonReturn {
             NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)
         }
+    }
+
+    /// Reset the TCC accessibility entry so macOS re-evaluates the current code signature.
+    private func resetTCCEntry() {
+        guard let bundleID = Bundle.main.bundleIdentifier else { return }
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/tccutil")
+        process.arguments = ["reset", "Accessibility", bundleID]
+        try? process.run()
+        process.waitUntilExit()
     }
 }
