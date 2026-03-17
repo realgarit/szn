@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
     <key>CFBundleName</key>
-    <string>szn</string>
+    <string>szn - Window Resizer</string>
     <key>CFBundleDisplayName</key>
     <string>szn - Window Resizer</string>
     <key>CFBundleIdentifier</key>
