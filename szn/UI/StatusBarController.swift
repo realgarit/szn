@@ -243,11 +243,26 @@ final class StatusBarController: NSObject, NSMenuDelegate {
 
     @objc private func checkForUpdates() {
         UpdateChecker.shared.checkForUpdates()
-        // Brief feedback: if no update found after a short delay, show status
         DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
-            if !UpdateChecker.shared.isUpdateAvailable {
+            if let version = UpdateChecker.shared.availableVersion,
+               let url = UpdateChecker.shared.downloadURL {
+                self?.showUpdateAlert(version: version, url: url)
+            } else {
                 self?.showAlert("You're on the latest version (v\(UpdateChecker.shared.currentVersion)).")
             }
+        }
+    }
+
+    private func showUpdateAlert(version: String, url: URL) {
+        let alert = NSAlert()
+        alert.messageText = "Update Available"
+        alert.informativeText = "szn v\(version) is available. You're currently on v\(UpdateChecker.shared.currentVersion)."
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: "Download")
+        alert.addButton(withTitle: "Later")
+
+        if alert.runModal() == .alertFirstButtonReturn {
+            NSWorkspace.shared.open(url)
         }
     }
 
