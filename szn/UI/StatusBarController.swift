@@ -236,9 +236,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     }
 
     @objc private func openUpdate() {
-        if let url = UpdateChecker.shared.downloadURL {
-            NSWorkspace.shared.open(url)
-        }
+        performInAppUpdate()
     }
 
     @objc private func checkForUpdates() {
@@ -258,12 +256,37 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         alert.messageText = "Update Available"
         alert.informativeText = "szn v\(version) is available. You're currently on v\(UpdateChecker.shared.currentVersion)."
         alert.alertStyle = .informational
-        alert.addButton(withTitle: "Download")
+        alert.addButton(withTitle: "Update Now")
         alert.addButton(withTitle: "Later")
 
         if alert.runModal() == .alertFirstButtonReturn {
-            NSWorkspace.shared.open(url)
+            performInAppUpdate()
         }
+    }
+
+    private func performInAppUpdate() {
+        let alert = NSAlert()
+        alert.messageText = "Updating szn..."
+        alert.informativeText = "Downloading update..."
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: "Cancel")
+
+        // Show non-modal so we can update the text
+        let window = alert.window
+
+        UpdateChecker.shared.performUpdate(
+            onProgress: { status in
+                alert.informativeText = status
+            },
+            onError: { [weak self] error in
+                alert.informativeText = error
+                // Dismiss after a moment and show error
+                window.orderOut(nil)
+                self?.showAlert(error)
+            }
+        )
+
+        alert.runModal()
     }
 
     @objc private func doQuit() {

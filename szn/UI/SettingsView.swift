@@ -81,12 +81,22 @@ struct SettingsView: View {
             Text("szn v\(updater.currentVersion)")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-            if let newVersion = updater.availableVersion, let url = updater.downloadURL {
+            if let newVersion = updater.availableVersion {
                 Text("·")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                Link("v\(newVersion) available", destination: url)
-                    .font(.caption)
+                Button("v\(newVersion) available — Update Now") {
+                    UpdateChecker.shared.performUpdate(
+                        onProgress: { _ in },
+                        onError: { _ in
+                            if let url = updater.downloadURL {
+                                NSWorkspace.shared.open(url)
+                            }
+                        }
+                    )
+                }
+                .font(.caption)
+                .buttonStyle(.link)
             }
             Spacer()
         }
