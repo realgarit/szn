@@ -236,57 +236,22 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     }
 
     @objc private func openUpdate() {
-        performInAppUpdate()
+        UpdateChecker.shared.promptAndUpdate()
     }
 
     @objc private func checkForUpdates() {
         UpdateChecker.shared.checkForUpdates()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
-            if let version = UpdateChecker.shared.availableVersion,
-               let url = UpdateChecker.shared.downloadURL {
-                self?.showUpdateAlert(version: version, url: url)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+            if UpdateChecker.shared.isUpdateAvailable {
+                UpdateChecker.shared.promptAndUpdate()
             } else {
-                self?.showAlert("You're on the latest version (v\(UpdateChecker.shared.currentVersion)).")
+                let alert = NSAlert()
+                alert.messageText = "szn"
+                alert.informativeText = "You're on the latest version (v\(UpdateChecker.shared.currentVersion))."
+                alert.alertStyle = .informational
+                alert.runModal()
             }
         }
-    }
-
-    private func showUpdateAlert(version: String, url: URL) {
-        let alert = NSAlert()
-        alert.messageText = "Update Available"
-        alert.informativeText = "szn v\(version) is available. You're currently on v\(UpdateChecker.shared.currentVersion)."
-        alert.alertStyle = .informational
-        alert.addButton(withTitle: "Update Now")
-        alert.addButton(withTitle: "Later")
-
-        if alert.runModal() == .alertFirstButtonReturn {
-            performInAppUpdate()
-        }
-    }
-
-    private func performInAppUpdate() {
-        let alert = NSAlert()
-        alert.messageText = "Updating szn..."
-        alert.informativeText = "Downloading update..."
-        alert.alertStyle = .informational
-        alert.addButton(withTitle: "Cancel")
-
-        // Show non-modal so we can update the text
-        let window = alert.window
-
-        UpdateChecker.shared.performUpdate(
-            onProgress: { status in
-                alert.informativeText = status
-            },
-            onError: { [weak self] error in
-                alert.informativeText = error
-                // Dismiss after a moment and show error
-                window.orderOut(nil)
-                self?.showAlert(error)
-            }
-        )
-
-        alert.runModal()
     }
 
     @objc private func doQuit() {

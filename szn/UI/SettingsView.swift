@@ -86,14 +86,7 @@ struct SettingsView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Button("v\(newVersion) available — Update Now") {
-                    UpdateChecker.shared.performUpdate(
-                        onProgress: { _ in },
-                        onError: { _ in
-                            if let url = updater.downloadURL {
-                                NSWorkspace.shared.open(url)
-                            }
-                        }
-                    )
+                    UpdateChecker.shared.promptAndUpdate()
                 }
                 .font(.caption)
                 .buttonStyle(.link)

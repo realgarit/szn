@@ -6,9 +6,7 @@ final class UpdateChecker: ObservableObject {
 
     @Published private(set) var availableVersion: String?
     @Published private(set) var downloadURL: URL?
-    /// Direct URL to the .dmg asset for in-app updates.
     @Published private(set) var dmgAssetURL: URL?
-    @Published private(set) var isUpdating = false
 
     private let repo = "realgarit/szn"
 
@@ -40,7 +38,6 @@ final class UpdateChecker: ObservableObject {
 
             let releaseURL = (json["html_url"] as? String).flatMap { URL(string: $0) }
 
-            // Find the .dmg asset URL from the release assets
             var dmgURL: URL?
             if let assets = json["assets"] as? [[String: Any]] {
                 for asset in assets {
@@ -62,156 +59,25 @@ final class UpdateChecker: ObservableObject {
         }.resume()
     }
 
-    /// Download the DMG, mount it, replace the current app, and relaunch.
-    func performUpdate(onProgress: @escaping (String) -> Void, onError: @escaping (String) -> Void) {
-        guard let dmgURL = dmgAssetURL else {
-            // Fallback to opening the release page
-            if let url = downloadURL {
-                NSWorkspace.shared.open(url)
-            }
-            return
+    /// Show the update prompt. If the user accepts, start the in-app update flow.
+    func promptAndUpdate() {
+        guard let version = availableVersion else { return }
+
+        let alert = NSAlert()
+        alert.messageText = "Update Available"
+        alert.informativeText = "szn v\(version) is available. You're currently on v\(currentVersion)."
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: "Update Now")
+        alert.addButton(withTitle: "Later")
+
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+
+        if let dmgURL = dmgAssetURL {
+            let updater = InAppUpdater(dmgURL: dmgURL)
+            updater.start()
+        } else if let url = downloadURL {
+            NSWorkspace.shared.open(url)
         }
-
-        isUpdating = true
-        onProgress("Downloading update...")
-
-        let task = URLSession.shared.downloadTask(with: dmgURL) { [weak self] tempURL, _, error in
-            guard let self = self else { return }
-
-            if let error = error {
-                DispatchQueue.main.async {
-                    self.isUpdating = false
-                    onError("Download failed: \(error.localizedDescription)")
-                }
-                return
-            }
-
-            guard let tempURL = tempURL else {
-                DispatchQueue.main.async {
-                    self.isUpdating = false
-                    onError("Download failed: no file received.")
-                }
-                return
-            }
-
-            // Move to a stable temp location (download task file is ephemeral)
-            let dmgPath = NSTemporaryDirectory() + "szn-update.dmg"
-            let dmgFileURL = URL(fileURLWithPath: dmgPath)
-            try? FileManager.default.removeItem(at: dmgFileURL)
-
-            do {
-                try FileManager.default.moveItem(at: tempURL, to: dmgFileURL)
-            } catch {
-                DispatchQueue.main.async {
-                    self.isUpdating = false
-                    onError("Failed to save download: \(error.localizedDescription)")
-                }
-                return
-            }
-
-            DispatchQueue.main.async {
-                onProgress("Installing update...")
-                self.installFromDMG(at: dmgPath, onError: onError)
-            }
-        }
-        task.resume()
-    }
-
-    // MARK: - Private
-
-    private func installFromDMG(at dmgPath: String, onError: @escaping (String) -> Void) {
-        let appBundlePath = Bundle.main.bundlePath
-        let appName = (appBundlePath as NSString).lastPathComponent // "szn.app"
-
-        // Mount the DMG
-        let mountPoint = NSTemporaryDirectory() + "szn-mount"
-        try? FileManager.default.removeItem(atPath: mountPoint)
-
-        let mount = Process()
-        mount.executableURL = URL(fileURLWithPath: "/usr/bin/hdiutil")
-        mount.arguments = ["attach", dmgPath, "-mountpoint", mountPoint, "-nobrowse", "-quiet"]
-
-        do {
-            try mount.run()
-            mount.waitUntilExit()
-        } catch {
-            isUpdating = false
-            onError("Failed to mount update: \(error.localizedDescription)")
-            return
-        }
-
-        guard mount.terminationStatus == 0 else {
-            isUpdating = false
-            onError("Failed to mount the DMG.")
-            return
-        }
-
-        let newAppPath = (mountPoint as NSString).appendingPathComponent(appName)
-
-        guard FileManager.default.fileExists(atPath: newAppPath) else {
-            unmount(mountPoint)
-            isUpdating = false
-            onError("Could not find \(appName) in the update.")
-            return
-        }
-
-        // Replace the current app bundle
-        let backupPath = appBundlePath + ".bak"
-        try? FileManager.default.removeItem(atPath: backupPath)
-
-        do {
-            // Move current app to backup
-            try FileManager.default.moveItem(atPath: appBundlePath, toPath: backupPath)
-            // Copy new app into place
-            try FileManager.default.copyItem(atPath: newAppPath, toPath: appBundlePath)
-            // Strip quarantine from the new app
-            let xattr = Process()
-            xattr.executableURL = URL(fileURLWithPath: "/usr/bin/xattr")
-            xattr.arguments = ["-cr", appBundlePath]
-            try? xattr.run()
-            xattr.waitUntilExit()
-            // Remove backup
-            try? FileManager.default.removeItem(atPath: backupPath)
-        } catch {
-            // Restore from backup if possible
-            if FileManager.default.fileExists(atPath: backupPath),
-               !FileManager.default.fileExists(atPath: appBundlePath) {
-                try? FileManager.default.moveItem(atPath: backupPath, toPath: appBundlePath)
-            }
-            unmount(mountPoint)
-            isUpdating = false
-            onError("Failed to install update: \(error.localizedDescription)")
-            return
-        }
-
-        unmount(mountPoint)
-        try? FileManager.default.removeItem(atPath: dmgPath)
-
-        // Relaunch
-        relaunch()
-    }
-
-    private func unmount(_ mountPoint: String) {
-        let detach = Process()
-        detach.executableURL = URL(fileURLWithPath: "/usr/bin/hdiutil")
-        detach.arguments = ["detach", mountPoint, "-quiet"]
-        try? detach.run()
-        detach.waitUntilExit()
-    }
-
-    private func relaunch() {
-        let appPath = Bundle.main.bundlePath
-        // Use a small shell script to wait for this process to exit, then reopen
-        let script = """
-        sleep 1
-        open "\(appPath)"
-        """
-        let task = Process()
-        task.executableURL = URL(fileURLWithPath: "/bin/sh")
-        task.arguments = ["-c", script]
-        try? task.run()
-
-        NSApp.terminate(nil)
     }
 
     private func isNewer(_ a: String, than b: String) -> Bool {
@@ -227,6 +93,269 @@ final class UpdateChecker: ObservableObject {
         return false
     }
 }
+
+// MARK: - In-App Updater
+
+/// Handles downloading the DMG, showing progress, installing, and relaunching.
+private final class InAppUpdater: NSObject, URLSessionDownloadDelegate {
+    private let dmgURL: URL
+    private var downloadTask: URLSessionDownloadTask?
+    private var session: URLSession?
+    private var progressWindow: UpdateProgressWindow?
+
+    init(dmgURL: URL) {
+        self.dmgURL = dmgURL
+    }
+
+    func start() {
+        let window = UpdateProgressWindow()
+        window.onCancel = { [weak self] in self?.cancel() }
+        window.show()
+        self.progressWindow = window
+
+        let config = URLSessionConfiguration.default
+        session = URLSession(configuration: config, delegate: self, delegateQueue: .main)
+        downloadTask = session?.downloadTask(with: dmgURL)
+        downloadTask?.resume()
+    }
+
+    private func cancel() {
+        downloadTask?.cancel()
+        session?.invalidateAndCancel()
+        progressWindow?.close()
+        progressWindow = nil
+    }
+
+    private func fail(_ message: String) {
+        progressWindow?.close()
+        progressWindow = nil
+
+        let alert = NSAlert()
+        alert.messageText = "Update Failed"
+        alert.informativeText = message
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Open Downloads Page")
+        alert.addButton(withTitle: "OK")
+
+        if alert.runModal() == .alertFirstButtonReturn {
+            if let url = UpdateChecker.shared.downloadURL {
+                NSWorkspace.shared.open(url)
+            }
+        }
+    }
+
+    // MARK: - URLSessionDownloadDelegate
+
+    func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didWriteData bytesWritten: Int64, totalBytesWritten: Int64, totalBytesExpectedToWrite: Int64) {
+        guard totalBytesExpectedToWrite > 0 else { return }
+        let progress = Double(totalBytesWritten) / Double(totalBytesExpectedToWrite)
+        let mbWritten = Double(totalBytesWritten) / 1_048_576
+        let mbTotal = Double(totalBytesExpectedToWrite) / 1_048_576
+        progressWindow?.update(
+            progress: progress,
+            status: String(format: "Downloading... %.1f / %.1f MB", mbWritten, mbTotal)
+        )
+    }
+
+    func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {
+        progressWindow?.update(progress: 1.0, status: "Installing...")
+        progressWindow?.setIndeterminate(true)
+
+        let dmgPath = NSTemporaryDirectory() + "szn-update.dmg"
+        let dmgFileURL = URL(fileURLWithPath: dmgPath)
+        try? FileManager.default.removeItem(at: dmgFileURL)
+
+        do {
+            try FileManager.default.moveItem(at: location, to: dmgFileURL)
+        } catch {
+            fail("Failed to save download: \(error.localizedDescription)")
+            return
+        }
+
+        install(from: dmgPath)
+    }
+
+    func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+        guard let error = error else { return }
+        if (error as NSError).code == NSURLErrorCancelled { return }
+        fail("Download failed: \(error.localizedDescription)")
+    }
+
+    // MARK: - Install
+
+    private func install(from dmgPath: String) {
+        let appBundlePath = Bundle.main.bundlePath
+        let appName = (appBundlePath as NSString).lastPathComponent
+
+        let mountPoint = NSTemporaryDirectory() + "szn-mount"
+        try? FileManager.default.removeItem(atPath: mountPoint)
+
+        // Mount DMG
+        let mount = Process()
+        mount.executableURL = URL(fileURLWithPath: "/usr/bin/hdiutil")
+        mount.arguments = ["attach", dmgPath, "-mountpoint", mountPoint, "-nobrowse", "-quiet"]
+
+        do {
+            try mount.run()
+            mount.waitUntilExit()
+        } catch {
+            fail("Failed to mount update: \(error.localizedDescription)")
+            return
+        }
+
+        guard mount.terminationStatus == 0 else {
+            fail("Failed to mount the update DMG.")
+            return
+        }
+
+        let newAppPath = (mountPoint as NSString).appendingPathComponent(appName)
+
+        guard FileManager.default.fileExists(atPath: newAppPath) else {
+            unmount(mountPoint)
+            fail("Could not find \(appName) in the update.")
+            return
+        }
+
+        // Replace current app
+        let backupPath = appBundlePath + ".bak"
+        try? FileManager.default.removeItem(atPath: backupPath)
+
+        do {
+            try FileManager.default.moveItem(atPath: appBundlePath, toPath: backupPath)
+            try FileManager.default.copyItem(atPath: newAppPath, toPath: appBundlePath)
+
+            // Strip quarantine
+            let xattr = Process()
+            xattr.executableURL = URL(fileURLWithPath: "/usr/bin/xattr")
+            xattr.arguments = ["-cr", appBundlePath]
+            try? xattr.run()
+            xattr.waitUntilExit()
+
+            try? FileManager.default.removeItem(atPath: backupPath)
+        } catch {
+            // Restore backup
+            if FileManager.default.fileExists(atPath: backupPath),
+               !FileManager.default.fileExists(atPath: appBundlePath) {
+                try? FileManager.default.moveItem(atPath: backupPath, toPath: appBundlePath)
+            }
+            unmount(mountPoint)
+            fail("Failed to install update: \(error.localizedDescription)")
+            return
+        }
+
+        unmount(mountPoint)
+        try? FileManager.default.removeItem(atPath: dmgPath)
+
+        relaunch()
+    }
+
+    private func unmount(_ mountPoint: String) {
+        let detach = Process()
+        detach.executableURL = URL(fileURLWithPath: "/usr/bin/hdiutil")
+        detach.arguments = ["detach", mountPoint, "-quiet"]
+        try? detach.run()
+        detach.waitUntilExit()
+    }
+
+    private func relaunch() {
+        let appPath = Bundle.main.bundlePath
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/bin/sh")
+        task.arguments = ["-c", "sleep 1; open \"\(appPath)\""]
+        try? task.run()
+        NSApp.terminate(nil)
+    }
+}
+
+// MARK: - Progress Window
+
+private final class UpdateProgressWindow {
+    private var window: NSWindow?
+    private var progressBar: NSProgressIndicator?
+    private var statusLabel: NSTextField?
+    private var cancelButton: NSButton?
+    var onCancel: (() -> Void)?
+
+    func show() {
+        let width: CGFloat = 380
+        let height: CGFloat = 130
+
+        let contentView = NSView(frame: NSRect(x: 0, y: 0, width: width, height: height))
+
+        // App icon + title
+        let icon = NSImageView(frame: NSRect(x: 20, y: height - 44, width: 32, height: 32))
+        icon.image = NSImage(systemSymbolName: "macwindow", accessibilityDescription: "szn")
+        icon.contentTintColor = .labelColor
+        contentView.addSubview(icon)
+
+        let title = NSTextField(labelWithString: "Updating szn")
+        title.font = .systemFont(ofSize: 14, weight: .semibold)
+        title.frame = NSRect(x: 58, y: height - 40, width: 200, height: 22)
+        contentView.addSubview(title)
+
+        // Status label
+        let status = NSTextField(labelWithString: "Preparing...")
+        status.font = .systemFont(ofSize: 12)
+        status.textColor = .secondaryLabelColor
+        status.frame = NSRect(x: 20, y: 50, width: width - 40, height: 18)
+        contentView.addSubview(status)
+        self.statusLabel = status
+
+        // Progress bar
+        let bar = NSProgressIndicator(frame: NSRect(x: 20, y: 30, width: width - 40, height: 12))
+        bar.style = .bar
+        bar.minValue = 0
+        bar.maxValue = 1
+        bar.doubleValue = 0
+        bar.isIndeterminate = false
+        contentView.addSubview(bar)
+        self.progressBar = bar
+
+        // Cancel button
+        let cancel = NSButton(title: "Cancel", target: nil, action: #selector(cancelClicked))
+        cancel.frame = NSRect(x: width - 90, y: 0, width: 80, height: 28)
+        cancel.bezelStyle = .rounded
+        cancel.target = self
+        contentView.addSubview(cancel)
+        self.cancelButton = cancel
+
+        let win = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: width, height: height),
+            styleMask: [.titled],
+            backing: .buffered,
+            defer: false
+        )
+        win.title = "szn Update"
+        win.contentView = contentView
+        win.center()
+        win.isReleasedWhenClosed = false
+        win.level = .floating
+        win.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+        self.window = win
+    }
+
+    func update(progress: Double, status: String) {
+        progressBar?.doubleValue = progress
+        statusLabel?.stringValue = status
+    }
+
+    func setIndeterminate(_ flag: Bool) {
+        progressBar?.isIndeterminate = flag
+        if flag { progressBar?.startAnimation(nil) }
+    }
+
+    func close() {
+        window?.orderOut(nil)
+        window = nil
+    }
+
+    @objc private func cancelClicked() {
+        onCancel?()
+    }
+}
+
+// MARK: - Notification
 
 extension Notification.Name {
     static let updateAvailable = Notification.Name("szn.updateAvailable")
