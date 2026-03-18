@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/logo.svg" width="128" alt="szn logo"/>
+  <img src="szn/Assets.xcassets/AppIcon.appiconset/icon_256x256.png" width="128" alt="szn logo"/>
 </p>
 
 <h1 align="center">szn - Window Resizer</h1>
