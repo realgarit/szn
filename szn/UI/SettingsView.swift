@@ -23,14 +23,19 @@ struct SettingsView: View {
     // MARK: - Sections
 
     private var header: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "macwindow")
-                .font(.title)
-            Text("szn")
-                .font(.title.bold())
-            Text("- Window Resizer")
-                .font(.title)
-                .foregroundStyle(.secondary)
+        HStack(spacing: 10) {
+            if let appIcon = NSApp.applicationIconImage {
+                Image(nsImage: appIcon)
+                    .resizable()
+                    .frame(width: 48, height: 48)
+            }
+            VStack(alignment: .leading, spacing: 2) {
+                Text("szn")
+                    .font(.title.bold())
+                Text("Window Resizer")
+                    .font(.title3)
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 
@@ -109,9 +114,7 @@ struct SettingsView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(profile.displayName)
                     .fontWeight(.medium)
-                let dims = "\(Int(profile.size.width)) × \(Int(profile.size.height))"
-                let detail = profile.savePosition ? "\(dims) + position" : "\(dims) (size only)"
-                Text(detail)
+                Text(profileDetail(profile))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -133,6 +136,14 @@ struct SettingsView: View {
             .buttonStyle(.borderless)
         }
         .padding(.vertical, 4)
+    }
+
+    private func profileDetail(_ profile: WindowProfile) -> String {
+        let dims = "\(Int(profile.size.width)) × \(Int(profile.size.height))"
+        if profile.savePosition, let pos = profile.position {
+            return "\(dims) at (\(Int(pos.x)), \(Int(pos.y)))"
+        }
+        return "\(dims) (size only)"
     }
 
     private func confirmRemoval(of profile: WindowProfile) {

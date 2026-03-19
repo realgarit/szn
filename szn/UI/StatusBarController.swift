@@ -71,6 +71,11 @@ final class StatusBarController: NSObject {
         saveBoth.target = self
         menu.addItem(saveBoth)
 
+        let applyAll = NSMenuItem(title: "Apply All Now", action: #selector(applyAllNow), keyEquivalent: "a")
+        applyAll.keyEquivalentModifierMask = [.command, .shift]
+        applyAll.target = self
+        menu.addItem(applyAll)
+
         menu.addItem(.separator())
 
         // Profiles list
@@ -89,7 +94,10 @@ final class StatusBarController: NSObject {
                 let sub = NSMenu()
 
                 let dims = "\(Int(profile.size.width)) × \(Int(profile.size.height))"
-                let detail = profile.savePosition ? "\(dims) + position" : dims
+                var detail = dims
+                if profile.savePosition, let pos = profile.position {
+                    detail += "  at (\(Int(pos.x)), \(Int(pos.y)))"
+                }
                 let info = NSMenuItem(title: detail, action: nil, keyEquivalent: "")
                 info.isEnabled = false
                 sub.addItem(info)
@@ -153,6 +161,19 @@ final class StatusBarController: NSObject {
         menu.addItem(quit)
 
         statusItem.menu = menu
+        updateTooltip()
+    }
+
+    private func updateTooltip() {
+        let count = ProfileStore.shared.profiles.values.filter(\.isEnabled).count
+        let enabled = ProfileStore.shared.isGloballyEnabled
+        if !enabled {
+            statusItem.button?.toolTip = "szn (disabled)"
+        } else if count == 0 {
+            statusItem.button?.toolTip = "szn — no profiles saved"
+        } else {
+            statusItem.button?.toolTip = "szn — \(count) profile\(count == 1 ? "" : "s") active"
+        }
     }
 
     // MARK: - Actions
@@ -204,6 +225,19 @@ final class StatusBarController: NSObject {
 
         for app in NSWorkspace.shared.runningApplications where app.bundleIdentifier == bundleID {
             AccessibilityService.shared.applyProfile(profile, to: app)
+        }
+    }
+
+    @objc private func applyAllNow() {
+        var applied = 0
+        for (bundleID, profile) in ProfileStore.shared.profiles where profile.isEnabled {
+            for app in NSWorkspace.shared.runningApplications where app.bundleIdentifier == bundleID {
+                AccessibilityService.shared.applyProfile(profile, to: app)
+                applied += 1
+            }
+        }
+        if applied > 0 {
+            showFeedback(for: "\(applied) app\(applied == 1 ? "" : "s")")
         }
     }
 
@@ -271,9 +305,9 @@ final class StatusBarController: NSObject {
         button.image = check
         button.toolTip = "Saved profile for \(appName)"
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
             button.image = original
-            button.toolTip = nil
+            self?.updateTooltip()
         }
     }
 

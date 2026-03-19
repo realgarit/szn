@@ -16,6 +16,11 @@ final class WindowManager {
         nc.addObserver(self, selector: #selector(appDidTerminate(_:)),
                        name: NSWorkspace.didTerminateApplicationNotification, object: nil)
 
+        // When profiles change, install observers for any newly saved apps
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(onProfilesChanged),
+            name: .profilesDidChange, object: nil)
+
         rescanRunningApps()
     }
 
@@ -30,7 +35,12 @@ final class WindowManager {
         }
     }
 
+    @objc private func onProfilesChanged() {
+        rescanRunningApps()
+    }
+
     func stopObserving() {
+        NotificationCenter.default.removeObserver(self)
         NSWorkspace.shared.notificationCenter.removeObserver(self)
         for (_, observer) in axObservers {
             CFRunLoopRemoveSource(CFRunLoopGetCurrent(),
