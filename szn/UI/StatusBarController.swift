@@ -71,22 +71,21 @@ final class StatusBarController: NSObject {
         saveBoth.target = self
         menu.addItem(saveBoth)
 
-        let applyAll = NSMenuItem(title: "Apply All Now", action: #selector(applyAllNow), keyEquivalent: "a")
-        applyAll.keyEquivalentModifierMask = [.command, .shift]
-        applyAll.target = self
-        menu.addItem(applyAll)
-
         menu.addItem(.separator())
 
         // Profiles list
         let sorted = ProfileStore.shared.profiles.values.sorted { $0.displayName.localizedCompare($1.displayName) == .orderedAscending }
+        let enabledCount = sorted.filter(\.isEnabled).count
 
         if sorted.isEmpty {
             let empty = NSMenuItem(title: "No saved profiles", action: nil, keyEquivalent: "")
             empty.isEnabled = false
             menu.addItem(empty)
         } else {
-            let header = NSMenuItem(title: "Saved Profiles", action: nil, keyEquivalent: "")
+            let headerTitle = enabledCount > 0
+                ? "Saved Profiles (\(enabledCount) active)"
+                : "Saved Profiles"
+            let header = NSMenuItem(title: headerTitle, action: nil, keyEquivalent: "")
             header.isEnabled = false
             menu.addItem(header)
 
@@ -136,6 +135,13 @@ final class StatusBarController: NSObject {
             }
         }
 
+        if enabledCount > 0 {
+            let applyAll = NSMenuItem(title: "Apply All Now", action: #selector(applyAllNow), keyEquivalent: "a")
+            applyAll.keyEquivalentModifierMask = [.command, .shift]
+            applyAll.target = self
+            menu.addItem(applyAll)
+        }
+
         menu.addItem(.separator())
 
         // Update available
@@ -162,6 +168,9 @@ final class StatusBarController: NSObject {
 
         statusItem.menu = menu
         updateTooltip()
+
+        // Dim the icon when globally disabled
+        statusItem.button?.appearsDisabled = !ProfileStore.shared.isGloballyEnabled
     }
 
     private func updateTooltip() {
