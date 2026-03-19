@@ -40,13 +40,6 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         previousApp = app
     }
 
-    // MARK: - NSMenuDelegate
-
-    func menuWillOpen(_ menu: NSMenu) {
-        // Snapshot the previously active app right when the menu opens
-        // (previousApp is already set via the workspace notification)
-    }
-
     // MARK: - Menu
 
     @objc private func onProfilesChanged() {
@@ -82,7 +75,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         menu.addItem(.separator())
 
         // Profiles list
-        let sorted = ProfileStore.shared.profiles.values.sorted { $0.appName.localizedCompare($1.appName) == .orderedAscending }
+        let sorted = ProfileStore.shared.profiles.values.sorted { $0.displayName.localizedCompare($1.displayName) == .orderedAscending }
 
         if sorted.isEmpty {
             let empty = NSMenuItem(title: "No saved profiles", action: nil, keyEquivalent: "")
@@ -298,7 +291,6 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     }
 
     /// Draw the menu bar icon programmatically — guarantees transparent background.
-    /// Two opposing arrows on the same diagonal (↗↙) representing resize.
     private static func createMenuBarIcon() -> NSImage {
         let size = NSSize(width: 18, height: 18)
         let image = NSImage(size: size, flipped: false) { rect in
@@ -312,23 +304,24 @@ final class StatusBarController: NSObject, NSMenuDelegate {
             let maxX = rect.width - inset
             let minY = inset
             let maxY = rect.height - inset
-            let gap: CGFloat = 2.5
+            let midX = rect.midX
+            let midY = rect.midY
 
-            // Expand arrow: pointing top-right
-            path.move(to: NSPoint(x: rect.midX + gap, y: rect.midY + gap))
+            // Expand arrow: bottom-left to top-right
+            path.move(to: NSPoint(x: minX, y: minY))
             path.line(to: NSPoint(x: maxX, y: maxY))
             // Arrowhead
-            path.move(to: NSPoint(x: maxX - 4, y: maxY))
+            path.move(to: NSPoint(x: midX, y: maxY))
             path.line(to: NSPoint(x: maxX, y: maxY))
-            path.line(to: NSPoint(x: maxX, y: maxY - 4))
+            path.line(to: NSPoint(x: maxX, y: midY))
 
-            // Shrink arrow: pointing bottom-left
-            path.move(to: NSPoint(x: rect.midX - gap, y: rect.midY - gap))
-            path.line(to: NSPoint(x: minX, y: minY))
+            // Shrink arrow: top-right to bottom-left
+            path.move(to: NSPoint(x: maxX, y: minY))
+            path.line(to: NSPoint(x: minX, y: maxY))
             // Arrowhead
-            path.move(to: NSPoint(x: minX + 4, y: minY))
+            path.move(to: NSPoint(x: midX, y: minY))
             path.line(to: NSPoint(x: minX, y: minY))
-            path.line(to: NSPoint(x: minX, y: minY + 4))
+            path.line(to: NSPoint(x: minX, y: midY))
 
             NSColor.black.setStroke()
             path.stroke()

@@ -12,6 +12,7 @@ final class ProfileStore: ObservableObject {
     @Published var isGloballyEnabled: Bool {
         didSet {
             UserDefaults.standard.set(isGloballyEnabled, forKey: Keys.globalEnabled)
+            NotificationCenter.default.post(name: .profilesDidChange, object: nil)
         }
     }
 

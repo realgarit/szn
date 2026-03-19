@@ -98,7 +98,7 @@ struct SettingsView: View {
     // MARK: - Helpers
 
     private var sortedProfiles: [WindowProfile] {
-        store.profiles.values.sorted { $0.appName.localizedCompare($1.appName) == .orderedAscending }
+        store.profiles.values.sorted { $0.displayName.localizedCompare($1.displayName) == .orderedAscending }
     }
 
     private func profileRow(_ profile: WindowProfile) -> some View {
@@ -126,13 +126,25 @@ struct SettingsView: View {
             .labelsHidden()
 
             Button(role: .destructive) {
-                store.remove(for: profile.bundleIdentifier)
+                confirmRemoval(of: profile)
             } label: {
                 Image(systemName: "trash")
             }
             .buttonStyle(.borderless)
         }
         .padding(.vertical, 4)
+    }
+
+    private func confirmRemoval(of profile: WindowProfile) {
+        let alert = NSAlert()
+        alert.messageText = "Remove Profile"
+        alert.informativeText = "Remove the saved window profile for \(profile.displayName)?"
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Remove")
+        alert.addButton(withTitle: "Cancel")
+
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        store.remove(for: profile.bundleIdentifier)
     }
 
     private func appIcon(for bundleID: String) -> some View {

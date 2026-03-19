@@ -81,7 +81,7 @@ szn uses the macOS Accessibility API (`AXUIElement`) to:
 2. **Observe** new window creation events via `AXObserver`
 3. **Apply** saved dimensions to new windows as they appear
 
-All profiles are stored locally in `UserDefaults` — no cloud, no telemetry, no network calls.
+All profiles are stored locally in `UserDefaults` — no cloud, no telemetry. The only network call is an optional update check against GitHub Releases.
 
 ## Requirements
 

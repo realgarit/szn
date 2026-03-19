@@ -61,6 +61,7 @@ final class WindowManager {
     @objc private func appDidActivate(_ note: Notification) {
         guard let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
               let bundleID = app.bundleIdentifier,
+              bundleID != Bundle.main.bundleIdentifier,
               ProfileStore.shared.isGloballyEnabled,
               ProfileStore.shared.profile(for: bundleID) != nil,
               !observedPIDs.contains(app.processIdentifier) else { return }
