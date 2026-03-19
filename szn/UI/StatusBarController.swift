@@ -1,7 +1,7 @@
 import Cocoa
 import SwiftUI
 
-final class StatusBarController: NSObject, NSMenuDelegate {
+final class StatusBarController: NSObject {
     private let statusItem: NSStatusItem
 
     private var settingsWindow: NSWindow?
@@ -48,7 +48,6 @@ final class StatusBarController: NSObject, NSMenuDelegate {
 
     private func rebuildMenu() {
         let menu = NSMenu()
-        menu.delegate = self
 
         // Global toggle
         let globalTitle = ProfileStore.shared.isGloballyEnabled ? "Enabled" : "Disabled"
@@ -160,7 +159,6 @@ final class StatusBarController: NSObject, NSMenuDelegate {
 
     @objc private func toggleGlobal() {
         ProfileStore.shared.isGloballyEnabled.toggle()
-        rebuildMenu()
     }
 
     @objc private func saveSizeOnly() { saveCurrentWindow(withPosition: false) }
@@ -192,14 +190,12 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         )
 
         ProfileStore.shared.save(profile)
-        rebuildMenu()
         showFeedback(for: appName)
     }
 
     @objc private func toggleProfile(_ sender: NSMenuItem) {
         guard let bundleID = sender.representedObject as? String else { return }
         ProfileStore.shared.toggleProfile(for: bundleID)
-        rebuildMenu()
     }
 
     @objc private func applyNow(_ sender: NSMenuItem) {
@@ -224,7 +220,6 @@ final class StatusBarController: NSObject, NSMenuDelegate {
 
         guard alert.runModal() == .alertFirstButtonReturn else { return }
         ProfileStore.shared.remove(for: bundleID)
-        rebuildMenu()
     }
 
     @objc private func openSettings() {
