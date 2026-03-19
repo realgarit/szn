@@ -46,6 +46,7 @@ final class WindowManager {
     @objc private func appDidLaunch(_ note: Notification) {
         guard let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
               let bundleID = app.bundleIdentifier,
+              bundleID != Bundle.main.bundleIdentifier,
               ProfileStore.shared.isGloballyEnabled,
               let profile = ProfileStore.shared.profile(for: bundleID),
               profile.isEnabled else { return }
@@ -116,6 +117,7 @@ final class WindowManager {
 
         guard let app = NSRunningApplication(processIdentifier: pid),
               let bundleID = app.bundleIdentifier,
+              bundleID != Bundle.main.bundleIdentifier,
               ProfileStore.shared.isGloballyEnabled,
               let profile = ProfileStore.shared.profile(for: bundleID),
               profile.isEnabled else { return }

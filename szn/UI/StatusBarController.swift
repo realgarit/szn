@@ -124,6 +124,14 @@ final class StatusBarController: NSObject, NSMenuDelegate {
                 let prefix = profile.isEnabled ? "✓ " : "   "
                 let item = NSMenuItem(title: "\(prefix)\(profile.displayName)", action: nil, keyEquivalent: "")
                 item.submenu = sub
+
+                // Show the app's icon in the menu
+                if let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: profile.bundleIdentifier) {
+                    let icon = NSWorkspace.shared.icon(forFile: appURL.path)
+                    icon.size = NSSize(width: 16, height: 16)
+                    item.image = icon
+                }
+
                 menu.addItem(item)
             }
         }
@@ -173,6 +181,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
 
         guard let targetApp = previousApp,
               let bundleID = targetApp.bundleIdentifier,
+              bundleID != Bundle.main.bundleIdentifier,
               let frame = AccessibilityService.shared.getFocusedWindowFrame(for: targetApp) else {
             showAlert("Could not read window size. Make sure another app's window was in focus before clicking szn.")
             return
@@ -191,7 +200,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
 
         ProfileStore.shared.save(profile)
         rebuildMenu()
-        showFeedback()
+        showFeedback(for: appName)
     }
 
     @objc private func toggleProfile(_ sender: NSMenuItem) {
@@ -210,7 +219,17 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     }
 
     @objc private func removeProfile(_ sender: NSMenuItem) {
-        guard let bundleID = sender.representedObject as? String else { return }
+        guard let bundleID = sender.representedObject as? String,
+              let profile = ProfileStore.shared.profile(for: bundleID) else { return }
+
+        let alert = NSAlert()
+        alert.messageText = "Remove Profile"
+        alert.informativeText = "Remove the saved window profile for \(profile.displayName)?"
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Remove")
+        alert.addButton(withTitle: "Cancel")
+
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
         ProfileStore.shared.remove(for: bundleID)
         rebuildMenu()
     }
@@ -237,9 +256,8 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     }
 
     @objc private func checkForUpdates() {
-        UpdateChecker.shared.checkForUpdates()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-            if UpdateChecker.shared.isUpdateAvailable {
+        UpdateChecker.shared.checkForUpdates { updateFound in
+            if updateFound {
                 UpdateChecker.shared.promptAndUpdate()
             } else {
                 let alert = NSAlert()
@@ -257,15 +275,17 @@ final class StatusBarController: NSObject, NSMenuDelegate {
 
     // MARK: - Feedback
 
-    private func showFeedback() {
+    private func showFeedback(for appName: String) {
         guard let button = statusItem.button else { return }
         let original = button.image
         let check = NSImage(systemSymbolName: "checkmark.circle.fill", accessibilityDescription: "saved")
         check?.isTemplate = true
         button.image = check
+        button.toolTip = "Saved profile for \(appName)"
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
             button.image = original
+            button.toolTip = nil
         }
     }
 
@@ -278,6 +298,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     }
 
     /// Draw the menu bar icon programmatically — guarantees transparent background.
+    /// Two opposing arrows on the same diagonal (↗↙) representing resize.
     private static func createMenuBarIcon() -> NSImage {
         let size = NSSize(width: 18, height: 18)
         let image = NSImage(size: size, flipped: false) { rect in
@@ -291,24 +312,23 @@ final class StatusBarController: NSObject, NSMenuDelegate {
             let maxX = rect.width - inset
             let minY = inset
             let maxY = rect.height - inset
-            let midX = rect.midX
-            let midY = rect.midY
+            let gap: CGFloat = 2.5
 
-            // Expand arrow: bottom-left to top-right
-            path.move(to: NSPoint(x: minX, y: minY))
+            // Expand arrow: pointing top-right
+            path.move(to: NSPoint(x: rect.midX + gap, y: rect.midY + gap))
             path.line(to: NSPoint(x: maxX, y: maxY))
             // Arrowhead
-            path.move(to: NSPoint(x: midX, y: maxY))
+            path.move(to: NSPoint(x: maxX - 4, y: maxY))
             path.line(to: NSPoint(x: maxX, y: maxY))
-            path.line(to: NSPoint(x: maxX, y: midY))
+            path.line(to: NSPoint(x: maxX, y: maxY - 4))
 
-            // Shrink arrow: top-right to bottom-left
-            path.move(to: NSPoint(x: maxX, y: minY))
-            path.line(to: NSPoint(x: minX, y: maxY))
-            // Arrowhead
-            path.move(to: NSPoint(x: midX, y: minY))
+            // Shrink arrow: pointing bottom-left
+            path.move(to: NSPoint(x: rect.midX - gap, y: rect.midY - gap))
             path.line(to: NSPoint(x: minX, y: minY))
-            path.line(to: NSPoint(x: minX, y: midY))
+            // Arrowhead
+            path.move(to: NSPoint(x: minX + 4, y: minY))
+            path.line(to: NSPoint(x: minX, y: minY))
+            path.line(to: NSPoint(x: minX, y: minY + 4))
 
             NSColor.black.setStroke()
             path.stroke()

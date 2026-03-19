@@ -6,6 +6,7 @@ final class AccessibilityService {
 
     private var permissionTimer: Timer?
     private var pollAttempts = 0
+    private static let maxPollAttempts = 120 // 2 minutes, then stop wasting cycles
 
     func isPermissionGranted() -> Bool {
         AXIsProcessTrusted()
@@ -41,8 +42,10 @@ final class AccessibilityService {
                 self.permissionTimer = nil
                 DispatchQueue.main.async { onGranted() }
             } else if self.pollAttempts == 15 {
-                // After 15s of waiting, show troubleshooting help
                 DispatchQueue.main.async { self.showTroubleshootingAlert() }
+            } else if self.pollAttempts >= Self.maxPollAttempts {
+                timer.invalidate()
+                self.permissionTimer = nil
             }
         }
     }
@@ -52,7 +55,8 @@ final class AccessibilityService {
         let axApp = AXUIElementCreateApplication(app.processIdentifier)
 
         var windowRef: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(axApp, kAXFocusedWindowAttribute as CFString, &windowRef) == .success else {
+        guard AXUIElementCopyAttributeValue(axApp, kAXFocusedWindowAttribute as CFString, &windowRef) == .success,
+              CFGetTypeID(windowRef!) == AXUIElementGetTypeID() else {
             return nil
         }
 
@@ -94,15 +98,23 @@ final class AccessibilityService {
         var sizeRef: CFTypeRef?
 
         guard AXUIElementCopyAttributeValue(window, kAXPositionAttribute as CFString, &posRef) == .success,
-              AXUIElementCopyAttributeValue(window, kAXSizeAttribute as CFString, &sizeRef) == .success else {
+              AXUIElementCopyAttributeValue(window, kAXSizeAttribute as CFString, &sizeRef) == .success,
+              posRef != nil, sizeRef != nil,
+              CFGetTypeID(posRef!) == AXValueGetTypeID(),
+              CFGetTypeID(sizeRef!) == AXValueGetTypeID() else {
             return nil
         }
+
+        let posValue = posRef as! AXValue
+        let sizeValue = sizeRef as! AXValue
 
         var position = CGPoint.zero
         var size = CGSize.zero
 
-        AXValueGetValue(posRef as! AXValue, .cgPoint, &position)
-        AXValueGetValue(sizeRef as! AXValue, .cgSize, &size)
+        guard AXValueGetValue(posValue, .cgPoint, &position),
+              AXValueGetValue(sizeValue, .cgSize, &size) else {
+            return nil
+        }
 
         return CGRect(origin: position, size: size)
     }
@@ -110,7 +122,7 @@ final class AccessibilityService {
     /// Attempt to remove quarantine attribute from the running app bundle.
     /// Quarantined unsigned apps can't reliably hold accessibility permissions on Sequoia.
     private func stripQuarantine() {
-        guard let bundlePath = Bundle.main.bundlePath as String? else { return }
+        let bundlePath = Bundle.main.bundlePath
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/xattr")
         process.arguments = ["-dr", "com.apple.quarantine", bundlePath]

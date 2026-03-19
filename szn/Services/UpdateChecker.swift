@@ -18,8 +18,11 @@ final class UpdateChecker: ObservableObject {
         availableVersion != nil
     }
 
-    func checkForUpdates() {
-        guard let url = URL(string: "https://api.github.com/repos/\(repo)/releases/latest") else { return }
+    func checkForUpdates(completion: ((Bool) -> Void)? = nil) {
+        guard let url = URL(string: "https://api.github.com/repos/\(repo)/releases/latest") else {
+            completion?(false)
+            return
+        }
 
         var request = URLRequest(url: url)
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
@@ -30,11 +33,17 @@ final class UpdateChecker: ObservableObject {
                   error == nil,
                   let data = data,
                   let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  let tagName = json["tag_name"] as? String else { return }
+                  let tagName = json["tag_name"] as? String else {
+                DispatchQueue.main.async { completion?(false) }
+                return
+            }
 
             let remoteVersion = tagName.hasPrefix("v") ? String(tagName.dropFirst()) : tagName
 
-            guard self.isNewer(remoteVersion, than: self.currentVersion) else { return }
+            guard self.isNewer(remoteVersion, than: self.currentVersion) else {
+                DispatchQueue.main.async { completion?(false) }
+                return
+            }
 
             let releaseURL = (json["html_url"] as? String).flatMap { URL(string: $0) }
 
@@ -55,6 +64,7 @@ final class UpdateChecker: ObservableObject {
                 self.downloadURL = releaseURL
                 self.dmgAssetURL = dmgURL
                 NotificationCenter.default.post(name: .updateAvailable, object: nil)
+                completion?(true)
             }
         }.resume()
     }
@@ -73,12 +83,17 @@ final class UpdateChecker: ObservableObject {
         guard alert.runModal() == .alertFirstButtonReturn else { return }
 
         if let dmgURL = dmgAssetURL {
+            // Keep a strong reference so the updater isn't deallocated during download
             let updater = InAppUpdater(dmgURL: dmgURL)
+            activeUpdater = updater
             updater.start()
         } else if let url = downloadURL {
             NSWorkspace.shared.open(url)
         }
     }
+
+    /// Prevent the in-app updater from being deallocated during download.
+    fileprivate var activeUpdater: InAppUpdater?
 
     private func isNewer(_ a: String, than b: String) -> Bool {
         let partsA = a.split(separator: ".").compactMap { Int($0) }
@@ -122,13 +137,18 @@ private final class InAppUpdater: NSObject, URLSessionDownloadDelegate {
     private func cancel() {
         downloadTask?.cancel()
         session?.invalidateAndCancel()
+        session = nil
         progressWindow?.close()
         progressWindow = nil
+        UpdateChecker.shared.activeUpdater = nil
     }
 
     private func fail(_ message: String) {
+        session?.invalidateAndCancel()
+        session = nil
         progressWindow?.close()
         progressWindow = nil
+        UpdateChecker.shared.activeUpdater = nil
 
         let alert = NSAlert()
         alert.messageText = "Update Failed"
@@ -259,9 +279,10 @@ private final class InAppUpdater: NSObject, URLSessionDownloadDelegate {
 
     private func relaunch() {
         let appPath = Bundle.main.bundlePath
+        // Use explicit arguments instead of shell interpolation to avoid injection
         let task = Process()
         task.executableURL = URL(fileURLWithPath: "/bin/sh")
-        task.arguments = ["-c", "sleep 1; open \"\(appPath)\""]
+        task.arguments = ["-c", "sleep 1; open \"$1\"", "--", appPath]
         try? task.run()
         NSApp.terminate(nil)
     }

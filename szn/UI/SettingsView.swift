@@ -41,17 +41,17 @@ struct SettingsView: View {
 
             Toggle("Launch at login", isOn: $launchAtLogin)
                 .toggleStyle(.switch)
-                .onChange(of: launchAtLogin, perform: { value in
+                .onChange(of: launchAtLogin) { newValue in
                     do {
-                        if value {
+                        if newValue {
                             try SMAppService.mainApp.register()
                         } else {
                             try SMAppService.mainApp.unregister()
                         }
                     } catch {
-                        launchAtLogin = !value
+                        launchAtLogin = !newValue
                     }
-                })
+                }
         }
     }
 
@@ -103,6 +103,9 @@ struct SettingsView: View {
 
     private func profileRow(_ profile: WindowProfile) -> some View {
         HStack {
+            appIcon(for: profile.bundleIdentifier)
+                .frame(width: 24, height: 24)
+
             VStack(alignment: .leading, spacing: 2) {
                 Text(profile.displayName)
                     .fontWeight(.medium)
@@ -130,5 +133,18 @@ struct SettingsView: View {
             .buttonStyle(.borderless)
         }
         .padding(.vertical, 4)
+    }
+
+    private func appIcon(for bundleID: String) -> some View {
+        Group {
+            if let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) {
+                Image(nsImage: NSWorkspace.shared.icon(forFile: appURL.path))
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+            } else {
+                Image(systemName: "app")
+                    .foregroundStyle(.secondary)
+            }
+        }
     }
 }

@@ -18,6 +18,7 @@ final class ProfileStore: ObservableObject {
     private enum Keys {
         static let profiles = "szn_profiles"
         static let globalEnabled = "szn_global_enabled"
+        static let profilesBackup = "szn_profiles_backup"
     }
 
     private init() {
@@ -27,6 +28,9 @@ final class ProfileStore: ObservableObject {
     }
 
     func save(_ profile: WindowProfile) {
+        // Reject nonsensical window sizes
+        guard profile.size.width >= 50, profile.size.height >= 50 else { return }
+
         profiles[profile.bundleIdentifier] = profile
         persist()
         NotificationCenter.default.post(name: .profilesDidChange, object: nil)
@@ -53,9 +57,15 @@ final class ProfileStore: ObservableObject {
     // MARK: - Private
 
     private func loadProfiles() {
-        guard let data = UserDefaults.standard.data(forKey: Keys.profiles),
-              let decoded = try? JSONDecoder().decode([String: WindowProfile].self, from: data) else { return }
-        profiles = decoded
+        guard let data = UserDefaults.standard.data(forKey: Keys.profiles) else { return }
+
+        do {
+            profiles = try JSONDecoder().decode([String: WindowProfile].self, from: data)
+        } catch {
+            // If decoding fails (e.g. model changed), keep a backup and start fresh
+            UserDefaults.standard.set(data, forKey: Keys.profilesBackup)
+            profiles = [:]
+        }
     }
 
     private func persist() {
