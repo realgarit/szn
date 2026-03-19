@@ -25,6 +25,7 @@ A free, open-source macOS menu bar app that remembers your preferred window size
 - **Menu bar only** — Lives in the menu bar, no dock icon, no clutter
 - **Launch at login** — Set it and forget it
 - **Global toggle** — Disable szn temporarily without removing your profiles
+- **In-app updates** — Check for new versions and update without leaving the app
 
 ## Installation
 
@@ -43,15 +44,13 @@ Grab the latest `.dmg` from the [Releases](https://github.com/realgarit/szn/rele
 
 ### Build from source
 
-```bash
-# Install xcodegen if you don't have it
-brew install xcodegen
+Requires Xcode (not just Command Line Tools).
 
-# Clone and build
+```bash
+brew install xcodegen
 git clone https://github.com/realgarit/szn.git
 cd szn
-xcodegen generate
-xcodebuild -project szn.xcodeproj -scheme szn -configuration Release
+make build
 ```
 
 ## Usage
@@ -70,8 +69,9 @@ xcodebuild -project szn.xcodeproj -scheme szn -configuration Release
 |--------|-------------|
 | **Save Size for Current App** | Saves the focused window's width and height |
 | **Save Size & Position** | Saves dimensions + screen position |
-| **Profiles submenu** | View, toggle, apply, or remove saved profiles |
-| **Settings** | Launch at login, global enable/disable |
+| **Profiles submenu** | View, toggle, apply now, or remove saved profiles |
+| **Check for Updates** | Check GitHub for a newer version and update in-app |
+| **Settings** | Launch at login, global enable/disable, manage profiles |
 
 ## How it works
 

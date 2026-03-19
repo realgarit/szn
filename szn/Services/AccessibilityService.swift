@@ -134,13 +134,13 @@ final class AccessibilityService {
         let alert = NSAlert()
         alert.messageText = "Accessibility Permission"
         alert.informativeText = """
-            szn can't detect accessibility permission yet.
+szn can't detect accessibility permission yet.
 
-            Please make sure szn is enabled in:
-            System Settings → Privacy & Security → Accessibility
+Please make sure szn is enabled in:
+System Settings → Privacy & Security → Accessibility
 
-            If the toggle is already on, try turning it off and on again.
-            """
+If the toggle is already on, try turning it off and on again.
+"""
         alert.alertStyle = .informational
         alert.addButton(withTitle: "Open System Settings")
         alert.addButton(withTitle: "Dismiss")
