@@ -16,6 +16,11 @@ final class WindowManager {
         nc.addObserver(self, selector: #selector(appDidTerminate(_:)),
                        name: NSWorkspace.didTerminateApplicationNotification, object: nil)
 
+        // Re-create all AX observers after wake from sleep — Mach port
+        // connections to target apps go stale during sleep.
+        nc.addObserver(self, selector: #selector(onWake),
+                       name: NSWorkspace.didWakeNotification, object: nil)
+
         // When profiles change, install observers for any newly saved apps
         NotificationCenter.default.addObserver(
             self, selector: #selector(onProfilesChanged),
@@ -36,6 +41,27 @@ final class WindowManager {
     }
 
     @objc private func onProfilesChanged() {
+        rescanRunningApps()
+    }
+
+    @objc private func onWake() {
+        // AXObserver Mach connections go stale after sleep.
+        // Brief delay to let the AX API fully reconnect after wake.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+            self?.reinstallAllObservers()
+        }
+    }
+
+    /// Remove all AX observers and re-install fresh ones.
+    /// Needed after sleep when Mach port connections become invalid.
+    private func reinstallAllObservers() {
+        for (_, observer) in axObservers {
+            CFRunLoopRemoveSource(CFRunLoopGetCurrent(),
+                                 AXObserverGetRunLoopSource(observer),
+                                 .defaultMode)
+        }
+        axObservers.removeAll()
+        observedPIDs.removeAll()
         rescanRunningApps()
     }
 
