@@ -3,6 +3,7 @@ import Cocoa
 final class WindowManager {
     private var observedPIDs: Set<pid_t> = []
     private var axObservers: [pid_t: AXObserver] = [:]
+    private var healthCheckTimer: Timer?
 
     func startObserving() {
         let nc = NSWorkspace.shared.notificationCenter
@@ -16,10 +17,14 @@ final class WindowManager {
         nc.addObserver(self, selector: #selector(appDidTerminate(_:)),
                        name: NSWorkspace.didTerminateApplicationNotification, object: nil)
 
-        // Re-create all AX observers after wake from sleep — Mach port
-        // connections to target apps go stale during sleep.
+        // Re-create AX observers after wake from sleep or display changes —
+        // Mach port connections can go stale in both cases.
         nc.addObserver(self, selector: #selector(onWake),
                        name: NSWorkspace.didWakeNotification, object: nil)
+
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(onScreenChanged),
+            name: NSApplication.didChangeScreenParametersNotification, object: nil)
 
         // When profiles change, install observers for any newly saved apps
         NotificationCenter.default.addObserver(
@@ -27,6 +32,7 @@ final class WindowManager {
             name: .profilesDidChange, object: nil)
 
         rescanRunningApps()
+        startHealthCheck()
     }
 
     /// Re-scan all running apps and install AX observers for any that have
@@ -52,8 +58,43 @@ final class WindowManager {
         }
     }
 
+    @objc private func onScreenChanged() {
+        // Display connect/disconnect can invalidate AX connections.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            self?.reinstallAllObservers()
+        }
+    }
+
+    // MARK: - Health Check
+
+    /// Periodically verify that AX observers are still functional.
+    /// Mach connections can silently break during normal use.
+    private func startHealthCheck() {
+        healthCheckTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
+            self?.checkObserverHealth()
+        }
+    }
+
+    private func checkObserverHealth() {
+        guard !axObservers.isEmpty else { return }
+
+        // Test one observed app — try to read its windows attribute.
+        // If this fails, the AX connection is likely broken for all observers.
+        for (pid, _) in axObservers {
+            let axApp = AXUIElementCreateApplication(pid)
+            var value: CFTypeRef?
+            let result = AXUIElementCopyAttributeValue(axApp, kAXWindowsAttribute as CFString, &value)
+            if result == .cannotComplete || result == .invalidUIElement {
+                reinstallAllObservers()
+                return
+            }
+            // Only need to test one — if it works, the AX subsystem is healthy
+            return
+        }
+    }
+
     /// Remove all AX observers and re-install fresh ones.
-    /// Needed after sleep when Mach port connections become invalid.
+    /// Needed when Mach port connections become invalid.
     private func reinstallAllObservers() {
         for (_, observer) in axObservers {
             CFRunLoopRemoveSource(CFRunLoopGetCurrent(),
@@ -66,6 +107,8 @@ final class WindowManager {
     }
 
     func stopObserving() {
+        healthCheckTimer?.invalidate()
+        healthCheckTimer = nil
         NotificationCenter.default.removeObserver(self)
         NSWorkspace.shared.notificationCenter.removeObserver(self)
         for (_, observer) in axObservers {
