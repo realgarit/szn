@@ -3,7 +3,8 @@ import Cocoa
 final class WindowManager {
     private var observedPIDs: Set<pid_t> = []
     private var axObservers: [pid_t: AXObserver] = [:]
-    private var healthCheckTimer: Timer?
+    private var refreshTimer: Timer?
+    private var screenChangeWorkItem: DispatchWorkItem?
 
     func startObserving() {
         let nc = NSWorkspace.shared.notificationCenter
@@ -17,11 +18,12 @@ final class WindowManager {
         nc.addObserver(self, selector: #selector(appDidTerminate(_:)),
                        name: NSWorkspace.didTerminateApplicationNotification, object: nil)
 
-        // Re-create AX observers after wake from sleep or display changes —
-        // Mach port connections can go stale in both cases.
+        // Re-create AX observers after wake — Mach connections go stale.
         nc.addObserver(self, selector: #selector(onWake),
                        name: NSWorkspace.didWakeNotification, object: nil)
 
+        // Display changes (connect/disconnect) can break AX connections.
+        // Debounced — screen params fire multiple times in rapid succession.
         NotificationCenter.default.addObserver(
             self, selector: #selector(onScreenChanged),
             name: NSApplication.didChangeScreenParametersNotification, object: nil)
@@ -32,7 +34,7 @@ final class WindowManager {
             name: .profilesDidChange, object: nil)
 
         rescanRunningApps()
-        startHealthCheck()
+        startPeriodicRefresh()
     }
 
     /// Re-scan all running apps and install AX observers for any that have
@@ -46,12 +48,23 @@ final class WindowManager {
         }
     }
 
+    func stopObserving() {
+        refreshTimer?.invalidate()
+        refreshTimer = nil
+        screenChangeWorkItem?.cancel()
+        screenChangeWorkItem = nil
+        NotificationCenter.default.removeObserver(self)
+        NSWorkspace.shared.notificationCenter.removeObserver(self)
+        removeAllObservers()
+    }
+
+    // MARK: - Event Handlers
+
     @objc private func onProfilesChanged() {
         rescanRunningApps()
     }
 
     @objc private func onWake() {
-        // AXObserver Mach connections go stale after sleep.
         // Brief delay to let the AX API fully reconnect after wake.
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
             self?.reinstallAllObservers()
@@ -59,58 +72,45 @@ final class WindowManager {
     }
 
     @objc private func onScreenChanged() {
-        // Display connect/disconnect can invalidate AX connections.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+        // Debounce — screen parameter notifications fire in bursts.
+        screenChangeWorkItem?.cancel()
+        let work = DispatchWorkItem { [weak self] in
             self?.reinstallAllObservers()
         }
+        screenChangeWorkItem = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0, execute: work)
     }
 
-    // MARK: - Health Check
+    // MARK: - Periodic Refresh
 
-    /// Periodically verify that AX observers are still functional.
-    /// Mach connections can silently break during normal use.
-    private func startHealthCheck() {
-        healthCheckTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
-            self?.checkObserverHealth()
+    /// Every 5 minutes, refresh each observer individually.
+    /// Unlike the global reinstall, this removes+reinstalls one PID at a time
+    /// so there's never a window where ALL observers are gone at once.
+    private func startPeriodicRefresh() {
+        refreshTimer = Timer.scheduledTimer(withTimeInterval: 300, repeats: true) { [weak self] _ in
+            self?.refreshAllObservers()
         }
     }
 
-    private func checkObserverHealth() {
-        guard !axObservers.isEmpty else { return }
-
-        // Test one observed app — try to read its windows attribute.
-        // If this fails, the AX connection is likely broken for all observers.
-        for (pid, _) in axObservers {
-            let axApp = AXUIElementCreateApplication(pid)
-            var value: CFTypeRef?
-            let result = AXUIElementCopyAttributeValue(axApp, kAXWindowsAttribute as CFString, &value)
-            if result == .cannotComplete || result == .invalidUIElement {
-                reinstallAllObservers()
-                return
+    /// Refresh each observer one at a time — no global teardown gap.
+    private func refreshAllObservers() {
+        let pids = Array(observedPIDs)
+        for pid in pids {
+            removeAXObserver(for: pid)
+            if let app = NSRunningApplication(processIdentifier: pid) {
+                installAXObserver(for: app)
             }
-            // Only need to test one — if it works, the AX subsystem is healthy
-            return
         }
     }
 
-    /// Remove all AX observers and re-install fresh ones.
-    /// Needed when Mach port connections become invalid.
+    /// Global teardown + reinstall. Used for wake and screen changes
+    /// where ALL Mach connections are likely broken at once.
     private func reinstallAllObservers() {
-        for (_, observer) in axObservers {
-            CFRunLoopRemoveSource(CFRunLoopGetCurrent(),
-                                 AXObserverGetRunLoopSource(observer),
-                                 .defaultMode)
-        }
-        axObservers.removeAll()
-        observedPIDs.removeAll()
+        removeAllObservers()
         rescanRunningApps()
     }
 
-    func stopObserving() {
-        healthCheckTimer?.invalidate()
-        healthCheckTimer = nil
-        NotificationCenter.default.removeObserver(self)
-        NSWorkspace.shared.notificationCenter.removeObserver(self)
+    private func removeAllObservers() {
         for (_, observer) in axObservers {
             CFRunLoopRemoveSource(CFRunLoopGetCurrent(),
                                  AXObserverGetRunLoopSource(observer),
@@ -142,9 +142,16 @@ final class WindowManager {
               let bundleID = app.bundleIdentifier,
               bundleID != Bundle.main.bundleIdentifier,
               ProfileStore.shared.isGloballyEnabled,
-              ProfileStore.shared.profile(for: bundleID) != nil,
-              !observedPIDs.contains(app.processIdentifier) else { return }
+              ProfileStore.shared.profile(for: bundleID) != nil else { return }
 
+        // Always refresh the observer for profiled apps on activation.
+        // AX Mach connections can silently break at any time — refreshing
+        // on activate ensures the observer is alive before the user opens
+        // a new window. Cost is ~50μs, completely negligible.
+        let pid = app.processIdentifier
+        if observedPIDs.contains(pid) {
+            removeAXObserver(for: pid)
+        }
         installAXObserver(for: app)
     }
 
