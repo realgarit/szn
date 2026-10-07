@@ -65,7 +65,7 @@ jobs:
 
       - name: Upload DMG artifact
         if: startsWith(github.ref, 'refs/tags/v')
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: szn-dmg
           path: "*.dmg"
