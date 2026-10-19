@@ -79,7 +79,7 @@ jobs:
       contents: write
     steps:
       - name: Download DMG
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: szn-dmg
 
