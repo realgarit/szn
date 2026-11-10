@@ -6,6 +6,8 @@ on:
     tags: ["v*"]
   pull_request:
     branches: [main]
+  # dependabot-automerge starts this on main after its merge.
+  workflow_dispatch:
 
 env:
   APP_NAME: "szn - Window Resizer"
